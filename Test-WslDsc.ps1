@@ -2,6 +2,7 @@
 param(
     [string[]]$ConfigPath = @(
         (Join-Path $PSScriptRoot 'wsl-dev.dsc.yaml'),
+        (Join-Path $PSScriptRoot 'tools.dsc.yaml'),
         (Join-Path $PSScriptRoot 'shells.dsc.yaml')
     ),
     [switch]$Quiet

@@ -1,6 +1,6 @@
 # WSL Ubuntu development baseline
 
-`wsl-dev.dsc.yaml` describes the Ubuntu packages used for this WSL development setup. `shells.dsc.yaml` configures Bash, PowerShell, Oh My Posh, and Terminal-Icons for the current user.
+`wsl-dev.dsc.yaml` describes the Ubuntu packages used for this WSL development setup. `tools.dsc.yaml` installs kubectl and Helm. `shells.dsc.yaml` configures Bash, PowerShell, Oh My Posh, and Terminal-Icons for the current user.
 
 ## Set up a fresh Ubuntu 24.04 instance
 
@@ -15,7 +15,7 @@ cd ~/repos/dsc-wsl
 bash ./bootstrap.sh
 ```
 
-The bootstrap installs Microsoft's Ubuntu package repository, stable DSC 3.3.0, PowerShell, and the baseline APT packages. It then applies the shell configuration through DSC as your user and tests both configurations. It is safe to run again to repair drift. It does not install WSL itself or change Windows Terminal settings.
+The bootstrap installs Microsoft's Ubuntu package repository, stable DSC 3.3.0, PowerShell, and the baseline APT packages. It then applies the kubectl, Helm, and shell configurations through DSC as your user and tests all three configurations. It is safe to run again to repair drift. It does not install WSL itself or change Windows Terminal settings.
 
 The shell configuration keeps existing `~/.bashrc` and PowerShell profile content. It adds one source line to each and manages `~/.config/dsc-wsl/bashrc` and `~/.config/dsc-wsl/powershell.ps1`. The fragments initialize zoxide, Kubernetes and Helm completions when those tools are present, and use a readable `~/.kube/config` if one exists. They use a local Kushal Oh My Posh theme. Terminal-Icons 0.11.0 is installed from PowerShell Gallery for the current user.
 
@@ -52,9 +52,9 @@ PowerShell comes from the Microsoft Ubuntu 24.04 apt repository. `bootstrap.sh` 
 
 ## Scope
 
-`helm`, `argocd`, `kubectl`, and `terraform` are not installed by this baseline. The completion setup is conditional on each command being available. Machine credentials, SSH keys, Kubernetes contexts, and Windows-side fonts are not included.
+kubectl `v1.35.9` and Helm `v3.19.0` are installed from their official Linux releases into `~/.local/bin` and verified against pinned SHA256 hashes. Their versions match the WSL host used to build this baseline. The completion setup is conditional on each command being available. `argocd` and `terraform` remain outside this baseline. Machine credentials, SSH keys, Kubernetes contexts, and Windows-side fonts are not included.
 
-APT package versions and the Oh My Posh binary version follow their upstream repositories; DSC 3.3.0 and Terminal-Icons 0.11.0 are pinned. The Kushal theme is exported to a local file on first setup.
+APT package versions and the Oh My Posh binary version follow their upstream repositories; DSC 3.3.0, kubectl, Helm, and Terminal-Icons 0.11.0 are pinned. The Kushal theme is exported to a local file on first setup.
 
 The installed `dsc` package is intentionally omitted: this apt repository currently offers a newer preview as its default candidate, while this setup uses stable DSC 3.3.0.
 
@@ -63,3 +63,5 @@ The built-in `DSC.PackageManagement/Apt` resource is documented as a proof of co
 - [Microsoft DSC Apt resource](https://learn.microsoft.com/powershell/dsc/reference/resources/dsc/packagemanagement/apt/)
 - [DSC configuration commands](https://learn.microsoft.com/powershell/dsc/reference/cli/config/)
 - [PowerShellScript resource](https://learn.microsoft.com/powershell/dsc/reference/resources/microsoft/dsc/transitional/powershellscript/)
+- [Install kubectl on Linux](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
+- [Install Helm](https://helm.sh/docs/intro/install/)

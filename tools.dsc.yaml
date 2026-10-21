@@ -1,0 +1,115 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+
+# User-scoped official binaries. Hashes pin both the version and file contents.
+# Apply as the normal user, never with sudo.
+resources:
+  - name: kubectl
+    type: Microsoft.DSC.Transitional/PowerShellScript
+    properties:
+      input:
+        version: v1.35.9
+        sha256:
+          amd64: 3cfeaf80be482b435b0aa214aff6e0b2c312ee23c0ff20810c75517b6004c6eb
+          arm64: 39c98bca82875d9a9ddfb6f3c5ab17c3f78ea0801230683e538a67d5c053308d
+      testScript: |
+        param($desired)
+        $arch = switch ((& uname -m).Trim()) {
+            'x86_64' { 'amd64'; break }
+            'aarch64' { 'arm64'; break }
+            default { return $false }
+        }
+        $exe = Join-Path $HOME '.local/bin/kubectl'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { return $false }
+        (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -eq $desired.sha256.$arch
+      setScript: |
+        param($desired)
+        $ErrorActionPreference = 'Stop'
+        $arch = switch ((& uname -m).Trim()) {
+            'x86_64' { 'amd64'; break }
+            'aarch64' { 'arm64'; break }
+            default { throw 'kubectl is supported on x86_64 and aarch64 only.' }
+        }
+        $expected = $desired.sha256.$arch
+        $bin = Join-Path $HOME '.local/bin'
+        $exe = Join-Path $bin 'kubectl'
+        if ((Test-Path -LiteralPath $exe -PathType Leaf) -and
+            (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -eq $expected) { return }
+
+        New-Item -ItemType Directory -Path $bin -Force | Out-Null
+        $staging = Join-Path $bin ('.kubectl-' + [guid]::NewGuid().ToString('N'))
+        try {
+            $url = "https://dl.k8s.io/release/$($desired.version)/bin/linux/$arch/kubectl"
+            Invoke-WebRequest -Uri $url -OutFile $staging
+            $actual = (Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash
+            if ($actual -ne $expected) { throw "kubectl SHA256 mismatch: $actual" }
+            & chmod 755 $staging
+            if ($LASTEXITCODE -ne 0) { throw 'chmod failed for kubectl.' }
+            Move-Item -LiteralPath $staging -Destination $exe -Force
+        } finally {
+            if (Test-Path -LiteralPath $staging) {
+                Remove-Item -LiteralPath $staging -Force
+            }
+        }
+
+  - name: Helm
+    type: Microsoft.DSC.Transitional/PowerShellScript
+    properties:
+      input:
+        version: v3.19.0
+        archiveSha256:
+          amd64: a7f81ce08007091b86d8bd696eb4d86b8d0f2e1b9f6c714be62f82f96a594496
+          arm64: 440cf7add0aee27ebc93fada965523c1dc2e0ab340d4348da2215737fc0d76ad
+        binarySha256:
+          amd64: e4722a77de9df824214aaf19d43687c49f7cbcf3b107905acea002173777d486
+          arm64: 7d3a203aae4309843050f8984dd0b90c9c36e328510e0f3fb7bd18e7fe2f5183
+      testScript: |
+        param($desired)
+        $arch = switch ((& uname -m).Trim()) {
+            'x86_64' { 'amd64'; break }
+            'aarch64' { 'arm64'; break }
+            default { return $false }
+        }
+        $exe = Join-Path $HOME '.local/bin/helm'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { return $false }
+        (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -eq $desired.binarySha256.$arch
+      setScript: |
+        param($desired)
+        $ErrorActionPreference = 'Stop'
+        $arch = switch ((& uname -m).Trim()) {
+            'x86_64' { 'amd64'; break }
+            'aarch64' { 'arm64'; break }
+            default { throw 'Helm is supported on x86_64 and aarch64 only.' }
+        }
+        $expected = $desired.binarySha256.$arch
+        $bin = Join-Path $HOME '.local/bin'
+        $exe = Join-Path $bin 'helm'
+        if ((Test-Path -LiteralPath $exe -PathType Leaf) -and
+            (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -eq $expected) { return }
+
+        New-Item -ItemType Directory -Path $bin -Force | Out-Null
+        $tempDir = Join-Path ([IO.Path]::GetTempPath()) ('dsc-wsl-helm-' + [guid]::NewGuid().ToString('N'))
+        $staging = Join-Path $bin ('.helm-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        try {
+            $archiveName = "helm-$($desired.version)-linux-$arch.tar.gz"
+            $archive = Join-Path $tempDir $archiveName
+            Invoke-WebRequest -Uri "https://get.helm.sh/$archiveName" -OutFile $archive
+            $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+            if ($archiveHash -ne $desired.archiveSha256.$arch) {
+                throw "Helm archive SHA256 mismatch: $archiveHash"
+            }
+            & tar -xzf $archive -C $tempDir "linux-$arch/helm"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not extract Helm archive.' }
+            $source = Join-Path $tempDir "linux-$arch/helm"
+            $actual = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+            if ($actual -ne $expected) { throw "Helm binary SHA256 mismatch: $actual" }
+            Copy-Item -LiteralPath $source -Destination $staging
+            & chmod 755 $staging
+            if ($LASTEXITCODE -ne 0) { throw 'chmod failed for Helm.' }
+            Move-Item -LiteralPath $staging -Destination $exe -Force
+        } finally {
+            if (Test-Path -LiteralPath $staging) {
+                Remove-Item -LiteralPath $staging -Force
+            }
+            Remove-Item -LiteralPath $tempDir -Recurse -Force
+        }

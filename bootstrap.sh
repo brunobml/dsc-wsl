@@ -36,7 +36,7 @@ sudo apt-get install -y dsc=3.3.0 powershell git gh make unzip python3 fzf zoxid
 
 # The bundled Apt DSC resource emits an invalid JSON boolean for a missing
 # package in DSC 3.3.0. APT provisions packages; DSC verifies them afterward.
-# Shell and module changes run through DSC as this user.
+# User tools, shells, and modules run through DSC as this user.
 apply_config() {
     local output
     output=$("$@")
@@ -47,6 +47,7 @@ apply_config() {
     jq -r '"Applied \(.results | length) DSC resources"' <<< "$output"
 }
 
+apply_config dsc --progress-format none config set --file "$repo_dir/tools.dsc.yaml" --output-format json
 apply_config dsc --progress-format none config set --file "$repo_dir/shells.dsc.yaml" --output-format json
 
 pwsh -NoProfile -File "$repo_dir/Test-WslDsc.ps1" -Quiet
