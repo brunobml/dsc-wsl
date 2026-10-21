@@ -1,0 +1,201 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+
+# Apply as the normal user, never with sudo. Each fragment is sourced from the
+# user's existing profile, leaving any other profile customizations intact.
+resources:
+  - name: Bash profile
+    type: Microsoft.DSC.Transitional/PowerShellScript
+    properties:
+      input:
+        relativePath: .config/dsc-wsl/bashrc
+        profilePath: .bashrc
+        includeLine: '. "$HOME/.config/dsc-wsl/bashrc"'
+        content: |
+          # Managed by dsc-wsl/shells.dsc.yaml.
+          case $- in *i*) ;; *) return ;; esac
+
+          case ":$PATH:" in
+            *":$HOME/.local/bin:"*) ;;
+            *) export PATH="$HOME/.local/bin:$PATH" ;;
+          esac
+
+          if [ -z "${KUBECONFIG:-}" ] && [ -r "$HOME/.kube/config" ]; then
+            export KUBECONFIG="$HOME/.kube/config"
+          fi
+
+          if command -v zoxide >/dev/null 2>&1; then
+            eval "$(zoxide init bash)"
+          fi
+
+          if command -v kubectl >/dev/null 2>&1; then
+            source <(kubectl completion bash)
+            alias k=kubectl
+            complete -o default -F __start_kubectl k
+          fi
+
+          if command -v helm >/dev/null 2>&1; then
+            source <(helm completion bash)
+          fi
+
+          if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$HOME/.config/dsc-wsl/kushal.omp.json" ]; then
+            eval "$(oh-my-posh init bash --config "$HOME/.config/dsc-wsl/kushal.omp.json")"
+          fi
+      testScript: |
+        param($desired)
+        $fragment = Join-Path $HOME $desired.relativePath
+        $profile = Join-Path $HOME $desired.profilePath
+        if (-not (Test-Path -LiteralPath $fragment -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $profile -PathType Leaf)) { return $false }
+        if ((Get-Content -LiteralPath $fragment -Raw) -cne $desired.content) { return $false }
+        $matches = @(Get-Content -LiteralPath $profile | Where-Object { $_ -ceq $desired.includeLine })
+        $matches.Count -eq 1
+      setScript: |
+        param($desired)
+        $fragment = Join-Path $HOME $desired.relativePath
+        $profile = Join-Path $HOME $desired.profilePath
+        $directory = Split-Path -Parent $fragment
+        if (-not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        }
+        if (-not (Test-Path -LiteralPath $fragment -PathType Leaf) -or
+            (Get-Content -LiteralPath $fragment -Raw) -cne $desired.content) {
+            Set-Content -LiteralPath $fragment -Value $desired.content -NoNewline -Encoding utf8
+        }
+        if (-not (Test-Path -LiteralPath $profile -PathType Leaf)) {
+            New-Item -ItemType File -Path $profile -Force | Out-Null
+        }
+        $matches = @(Get-Content -LiteralPath $profile | Where-Object { $_ -ceq $desired.includeLine })
+        if ($matches.Count -eq 0) {
+            Add-Content -LiteralPath $profile -Value "`n$($desired.includeLine)"
+        } elseif ($matches.Count -gt 1) {
+            $seen = $false
+            $lines = Get-Content -LiteralPath $profile | Where-Object {
+                if ($_ -cne $desired.includeLine) { return $true }
+                if ($seen) { return $false }
+                $seen = $true
+                return $true
+            }
+            Set-Content -LiteralPath $profile -Value $lines -Encoding utf8
+        }
+
+  - name: PowerShell profile
+    type: Microsoft.DSC.Transitional/PowerShellScript
+    properties:
+      input:
+        relativePath: .config/dsc-wsl/powershell.ps1
+        profilePath: .config/powershell/Microsoft.PowerShell_profile.ps1
+        includeLine: '. (Join-Path $HOME ''.config/dsc-wsl/powershell.ps1'')'
+        content: |
+          # Managed by dsc-wsl/shells.dsc.yaml.
+          $localBin = Join-Path $HOME '.local/bin'
+          if (($env:PATH -split ':') -cnotcontains $localBin) {
+              $env:PATH = "$localBin`:$env:PATH"
+          }
+
+          $userKubeConfig = Join-Path $HOME '.kube/config'
+          if (-not $env:KUBECONFIG -and (Test-Path -LiteralPath $userKubeConfig)) {
+              $env:KUBECONFIG = $userKubeConfig
+          }
+
+          $theme = Join-Path $HOME '.config/dsc-wsl/kushal.omp.json'
+          if ((Get-Command oh-my-posh -ErrorAction Ignore) -and (Test-Path $theme)) {
+              oh-my-posh init pwsh --config $theme | Invoke-Expression
+          }
+
+          if (Get-Command kubectl -ErrorAction Ignore) {
+              kubectl completion powershell | Out-String | Invoke-Expression
+              Set-Alias -Name k -Value kubectl
+          }
+          if (Get-Command helm -ErrorAction Ignore) {
+              helm completion powershell | Out-String | Invoke-Expression
+          }
+          if (Get-Command zoxide -ErrorAction Ignore) {
+              zoxide init powershell | Out-String | Invoke-Expression
+          }
+          if (Get-Module -ListAvailable -Name Terminal-Icons) {
+              Import-Module Terminal-Icons
+          }
+      testScript: |
+        param($desired)
+        $fragment = Join-Path $HOME $desired.relativePath
+        $profile = Join-Path $HOME $desired.profilePath
+        if (-not (Test-Path -LiteralPath $fragment -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $profile -PathType Leaf)) { return $false }
+        if ((Get-Content -LiteralPath $fragment -Raw) -cne $desired.content) { return $false }
+        $matches = @(Get-Content -LiteralPath $profile | Where-Object { $_ -ceq $desired.includeLine })
+        $matches.Count -eq 1
+      setScript: |
+        param($desired)
+        $fragment = Join-Path $HOME $desired.relativePath
+        $profile = Join-Path $HOME $desired.profilePath
+        foreach ($directory in @((Split-Path -Parent $fragment), (Split-Path -Parent $profile))) {
+            if (-not (Test-Path -LiteralPath $directory)) {
+                New-Item -ItemType Directory -Path $directory -Force | Out-Null
+            }
+        }
+        if (-not (Test-Path -LiteralPath $fragment -PathType Leaf) -or
+            (Get-Content -LiteralPath $fragment -Raw) -cne $desired.content) {
+            Set-Content -LiteralPath $fragment -Value $desired.content -NoNewline -Encoding utf8
+        }
+        if (-not (Test-Path -LiteralPath $profile -PathType Leaf)) {
+            New-Item -ItemType File -Path $profile -Force | Out-Null
+        }
+        $matches = @(Get-Content -LiteralPath $profile | Where-Object { $_ -ceq $desired.includeLine })
+        if ($matches.Count -eq 0) {
+            Add-Content -LiteralPath $profile -Value "`n$($desired.includeLine)"
+        } elseif ($matches.Count -gt 1) {
+            $seen = $false
+            $lines = Get-Content -LiteralPath $profile | Where-Object {
+                if ($_ -cne $desired.includeLine) { return $true }
+                if ($seen) { return $false }
+                $seen = $true
+                return $true
+            }
+            Set-Content -LiteralPath $profile -Value $lines -Encoding utf8
+        }
+
+  - name: Oh My Posh prompt
+    type: Microsoft.DSC.Transitional/PowerShellScript
+    properties:
+      testScript: |
+        $exe = Join-Path $HOME '.local/bin/oh-my-posh'
+        $theme = Join-Path $HOME '.config/dsc-wsl/kushal.omp.json'
+        [bool]((Test-Path -LiteralPath $exe -PathType Leaf) -and
+               (Test-Path -LiteralPath $theme -PathType Leaf))
+      setScript: |
+        $ErrorActionPreference = 'Stop'
+        $bin = Join-Path $HOME '.local/bin'
+        $exe = Join-Path $bin 'oh-my-posh'
+        $theme = Join-Path $HOME '.config/dsc-wsl/kushal.omp.json'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $bin -Force | Out-Null
+            $installer = [IO.Path]::GetTempFileName()
+            try {
+                Invoke-WebRequest -Uri 'https://ohmyposh.dev/install.sh' -OutFile $installer
+                & bash $installer -d $bin
+                if ($LASTEXITCODE -ne 0) { throw "Oh My Posh installer exited $LASTEXITCODE" }
+            } finally {
+                Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+            }
+        }
+        if (-not (Test-Path -LiteralPath $theme -PathType Leaf)) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $theme) -Force | Out-Null
+            & $exe config export --config kushal --output $theme
+            if ($LASTEXITCODE -ne 0) { throw "Could not export Kushal theme ($LASTEXITCODE)" }
+        }
+
+  - name: Terminal-Icons module
+    type: Microsoft.DSC.Transitional/PowerShellScript
+    properties:
+      testScript: |
+        $installed = Get-Module -ListAvailable -Name Terminal-Icons |
+            Where-Object { $_.Version -eq [version]'0.11.0' } |
+            Select-Object -First 1
+        $null -ne $installed
+      setScript: |
+        $ErrorActionPreference = 'Stop'
+        if (-not (Get-Module -ListAvailable -Name Terminal-Icons |
+            Where-Object { $_.Version -eq [version]'0.11.0' } |
+            Select-Object -First 1)) {
+            Install-PSResource -Name Terminal-Icons -Version '0.11.0' -Repository PSGallery -Scope CurrentUser -TrustRepository -Quiet
+        }

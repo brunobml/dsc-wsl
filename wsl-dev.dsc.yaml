@@ -1,0 +1,64 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+
+# Ubuntu packages used by the WSL PowerShell, Git, and Kubernetes workflow.
+# This checks that each package exists; it does not pin or upgrade versions.
+resources:
+  - name: PowerShell
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: powershell
+
+  - name: Git
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: git
+
+  - name: GitHub CLI
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: gh
+
+  - name: curl
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: curl
+
+  - name: wget
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: wget
+
+  - name: CA certificates
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: ca-certificates
+
+  - name: jq
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: jq
+
+  - name: make
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: make
+
+  - name: unzip
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: unzip
+
+  - name: Python 3
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: python3
+
+  - name: fzf
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: fzf
+
+  - name: zoxide
+    type: DSC.PackageManagement/Apt
+    properties:
+      packageName: zoxide
