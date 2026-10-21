@@ -1,0 +1,8 @@
+#cloud-config
+package_update: true
+packages:
+  - git
+runcmd:
+  - [install, -d, -o, ubuntu, -g, ubuntu, /home/ubuntu/repos]
+  - [sudo, -u, ubuntu, -H, git, clone, https://github.com/brunobml/dsc-wsl.git, /home/ubuntu/repos/dsc-wsl]
+  - [sudo, -u, ubuntu, -H, bash, /home/ubuntu/repos/dsc-wsl/bootstrap.sh]
